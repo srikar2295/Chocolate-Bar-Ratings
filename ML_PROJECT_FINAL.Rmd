@@ -1,0 +1,823 @@
+---
+title: "Final Project"
+output: html_notebook
+---
+
+
+<h1>DATA CLEANING:<h1>
+
+
+```{r}
+chocolate = read.csv("chocolate.csv")
+
+```
+
+
+
+```{r}
+str(chocolate)
+
+```
+
+
+
+```{r}
+
+names(chocolate)[1:9] <- c("Company_Maker", "Bar_Name","REF", "Review_Date", "Cocoa_Percentage", "Company_Location", "Rating", "Bean_Type", "Bean_Origin")
+
+names(chocolate)
+
+```
+
+
+```{r}
+chocolate$Cocoa_Percentage <- as.numeric(sub("%", "", chocolate$Cocoa_Percentage))/100
+str(chocolate)
+
+```
+
+
+```{r}
+
+colSums(is.na(chocolate))
+```
+
+
+
+<h1>DATA EXPLORATION:<h1>
+
+
+
+
+```{r}
+hist(chocolate$Rating)
+
+```
+
+
+
+```{r}
+cor.test(Rating,chocolate$REF)
+```
+
+
+```{r}
+cor.test(Rating,Review_Date)
+
+```
+
+
+```{r}
+cor.test(Rating,Cocoa_Percentage)
+```
+
+
+
+```{r}
+
+pairs(chocolate[c("Rating","REF","Review_Date","Cocoa_Percentage")])
+
+```
+
+
+
+```{r}
+
+plot(Rating~Company_Location, col="red")
+
+```
+
+
+```{r}
+plot(Rating~Bar_Name, col="blue")
+
+```
+
+
+```{r}
+plot(Rating~Company_Maker, col="red")
+
+```
+
+
+```{r}
+
+plot(Rating~Bean_Type, col="blue")
+
+```
+
+
+```{r}
+plot(Rating~Bean_Origin, col="yellow")
+
+
+```
+
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+```
+
+
+
+```{r}
+
+select_country = chocolate %>% group_by(Company_Location) %>% summarize(count=n()) %>% arrange(desc(count)) %>% top_n(10)
+
+ggplot(select_country, aes(x = reorder(Company_Location, -count), y = count))+
+geom_bar(stat = 'identity', width = 0.7, col = "black", fill = "blue") +
+labs(x = "Country", y = "Count", title = "Top 10 countries with more chocolate companies")
+
+```
+
+
+```{r}
+
+company_make = chocolate %>% group_by(Company_Maker) %>% summarize(count=n()) %>% arrange(desc(count)) %>% top_n(10)
+
+ggplot(company_make, aes(x = reorder(Company_Maker, -count), y = count))+
+geom_bar(stat = 'identity', width = 0.7, col = "black", fill = "Red") +
+labs(x = "Makers", y = "Count", title = "Top 10 chocolate company Makers")
+
+
+```
+
+
+```{r}
+
+Bean = chocolate %>% group_by(Bean_Type) %>% summarize(count=n()) %>% arrange(desc(count)) %>% top_n(5)
+
+ggplot(Bean, aes(x = reorder(Bean_Type, -count), y = count))+
+geom_bar(stat = 'identity', width = 0.7, col = "black", fill = "green") +
+labs(x = "Beans", y = "Count", title = "Top most used beans")
+
+
+```
+
+
+
+```{r}
+Rate = chocolate %>% group_by(Rating) %>% summarize(count=n()) %>% arrange(desc(count)) 
+
+ggplot(Rate, aes(x = reorder(Rating, -count), y = count))+
+geom_bar(stat = 'identity', width = 0.7, col = "black", fill = "violet") +
+labs(x = "Rating", y = "Count", title = "Given Ratings")
+
+
+```
+
+
+
+```{r}
+chocolate$Rating = log(chocolate$Rating)
+
+```
+
+
+<h1>Creating Predictive Models: <h1>
+
+
+
+```{r}
+chocolate_raw = read.csv("chocolate.csv")
+
+```
+
+
+#This is the RMSE i got before cleaning(RAW) the data(coverting the cocoa_percentage to number), after cleaning the data it gave me a better results
+
+```{r warning=FALSE}
+set.seed(1)
+
+trainn = createDataPartition(chocolate_raw$Rating, p=0.8, list = FALSE)
+
+chocolate_raw_train = chocolate_raw[trainn,]
+chocolate_raw_test = chocolate_raw[-trainn,]
+
+
+lm_raw <- train(Rating~., data = chocolate_raw_train, method = "lm", trControl = trainControl("cv", number = 10))
+
+predictions <- predict(lm_raw,chocolate_raw_test)
+RMSE(predictions, chocolate_raw_test$Rating)
+
+```
+
+#This is the RMSE i got after cleaning the data, which has much better results. 
+
+
+
+```{r}
+library(caret)
+
+Intrain = createDataPartition(chocolate$Rating, p=0.8, list = FALSE)
+
+chocolate_train = chocolate[Intrain,]
+chocolate_test = chocolate[-Intrain,]
+
+```
+
+<h1>"Multiple Linear Regression" without scaling.<h1>
+
+
+
+```{r warning=FALSE}
+set.seed(1)
+
+lm <- train(Rating~., data = chocolate_train, method = "lm", trControl = trainControl("cv", number = 10))
+
+predictions <- predict(lm,chocolate_test)
+RMSE(predictions, chocolate_test$Rating)
+
+
+```
+
+#Scaling the data for better performance excluding the Target variable.
+
+```{r}
+
+
+chocolate_factors = chocolate[c(1,2,5,6,8,9)]
+
+chocolate_numericals = chocolate[c(-1,-2,-5,-6,-7,-8,-9)]
+
+chocolate_target = chocolate[7]
+
+chocolate_factors = lapply(chocolate_factors, as.numeric)
+
+scal = cbind(chocolate_factors,chocolate_numericals)
+
+scaled = scale(scal)
+
+chocolaten = cbind(scaled,chocolate_target)
+
+
+
+```
+
+
+```{r}
+
+intrain = createDataPartition(chocolaten$Rating, p=0.8, list = FALSE)
+
+chocolaten_train = chocolaten[intrain,]
+chocolaten_test = chocolaten[-intrain,]
+
+
+```
+
+
+<h1>"Multiple Linear Regression" with scaling.<h1>
+
+#We see almost 10% of change in RMSE when compared to whithout scaling data. Looking forward to fit the models with the scaled data.
+
+```{r}
+set.seed(1)
+
+lm <- train(Rating~., data = chocolaten_train, method = "lm", trControl = trainControl("cv", number = 10))
+
+summary(lm)
+
+
+predictions <- predict(lm,chocolaten_test)
+lm_RMSE = RMSE(predictions, chocolaten_test$Rating)
+
+lm_RMSE
+
+
+```
+
+<h1>"Bagging Tree"<h1>
+
+```{r}
+
+set.seed(1)
+library(caret)
+Bag = train(Rating~., data = chocolaten_train, method = "treebag", nbagg=100, trControl=trainControl("cv", number=10))
+Bag
+
+```
+
+
+
+```{r}
+set.seed(1)
+predictions<- predict(Bag, chocolaten_test)
+Bag_rmse <- RMSE(predictions, chocolate_test$Rating)
+Bag_rmse
+
+```
+
+<h1>"Regression Tree"<h1>
+
+
+```{r}
+
+set.seed(1)
+library(caret)
+library(rpart)
+Rtrees = train(Rating~., data = chocolaten_train, method = "rpart1SE", trControl=trainControl("cv", number=10))
+Rtrees
+
+```
+
+
+
+```{r}
+
+set.seed(1)
+predictions<- predict(Rtrees, chocolaten_test)
+Rtrees_RMSE <- RMSE(predictions, chocolate_test$Rating)
+Rtrees_RMSE
+
+```
+
+```{r}
+library(rpart.plot)
+rpart.plot(Rtrees$finalModel, roundint = FALSE)
+```
+
+<h1>"Model Tree"<h1>
+
+```{r}
+set.seed(1)
+library(RWeka)
+library(partykit)
+
+Mtrees = train(Rating~., data = chocolaten_train, method = "M5", trControl=trainControl("cv", number=10))
+Mtrees
+
+
+
+```
+
+
+```{r}
+
+plot(Mtrees)
+```
+
+
+
+```{r}
+
+set.seed(1)
+predictions<- predict(Mtrees, chocolaten_test)
+Mtrees_RMSE <- RMSE(predictions, chocolate_test$Rating)
+Mtrees_RMSE
+```
+
+<h1>"Stepwise (Forward) Linear Regression"<h1>
+
+
+```{r}
+
+set.seed(1)
+
+F.stepmodel <- train(Rating~., data = chocolate_train, method = "leapForward", trControl = trainControl(method = "cv", number = 10), tuneGrid = data.frame(nvmax = 1:22))
+print(F.stepmodel)
+
+summary(F.stepmodel$finalModel)
+
+
+```
+
+
+
+```{r}
+set.seed(1)
+predictions <- predict(F.stepmodel,chocolate_test)
+F.stepmodel_RMSE = RMSE(predictions, chocolate_test$Rating)
+
+F.stepmodel_RMSE
+
+
+```
+
+<h1>"Stepwise (Backward) Linear Regression"<h1>
+
+
+```{r}
+
+set.seed(1)
+
+B.stepmodel <- train(Rating~., data = chocolate_train, method = "leapBackward", trControl = trainControl(method = "cv", number = 10), tuneGrid = data.frame(nvmax = 1:22))
+print(F.stepmodel)
+
+summary(B.stepmodel$finalModel)
+
+```
+
+
+```{r}
+set.seed(1)
+predictions <- predict(B.stepmodel,chocolate_test)
+B.stepmodel_RMSE = RMSE(predictions, chocolate_test$Rating)
+
+B.stepmodel_RMSE
+
+```
+<h1>"Regularized Linear Regression"<h1>
+
+<h1>"Lasso"<h1>
+```{r}
+set.seed(1)
+
+lasso <- train(Rating ~ ., data = chocolaten_train, method = "glmnet", trControl = trainControl("cv", number = 10), tuneGrid = expand.grid(alpha = 1, lambda = 10 ^ seq(-3, 3, length = 100)))
+
+coef(lasso$finalModel, lasso$bestTune$lambda)
+
+```
+
+
+
+```{r}
+set.seed(1)
+predictions <- predict(lasso,chocolaten_test)
+lasso_RMSE = RMSE(predictions, chocolaten_test$Rating)
+
+lasso_RMSE
+
+```
+
+<h1>"Ridge"<h1>
+
+```{r}
+set.seed(1)
+Ridge <- train(Rating ~ ., data = chocolaten_train, method = "glmnet", trControl = trainControl("cv", number = 10), tuneGrid = expand.grid(alpha = 0, lambda = 10 ^ seq(-3, 3, length = 100)))
+
+coef(Ridge$finalModel, Ridge$bestTune$lambda)
+
+
+```
+
+
+```{r}
+set.seed(1)
+predictions <- predict(Ridge,chocolaten_test)
+Ridge_RMSE = RMSE(predictions, chocolaten_test$Rating)
+
+Ridge_RMSE
+
+```
+<h1>"ENET"<h1>
+
+```{r}
+set.seed(1)
+ENET <- train(Rating ~ ., data = chocolaten_train, method = "glmnet", trControl = trainControl("cv", number = 10), tuneGrid = expand.grid(alpha = seq(0,1, length = 10), lambda = 10 ^ seq(-3, 3, length = 100)))
+
+ENET
+
+```
+
+
+```{r}
+set.seed(1)
+ENET_predictions <- predict(ENET,chocolaten_test)
+ENET_RMSE = RMSE(ENET_predictions, chocolaten_test$Rating)
+
+ENET_RMSE
+
+```
+<h1>"Principal Componenet Analysis"<h1>
+
+
+```{r}
+PCA = prcomp(chocolaten_train, scale = TRUE)
+names(PCA)
+
+```
+
+```{r}
+PCA$x
+```
+
+```{r}
+summary(PCA)
+```
+
+<h1>"RandomForest"<h1>
+
+```{r}
+set.seed(1)
+library(caret)
+rf = train(Rating ~ ., data = chocolaten_train, trControl = trainControl("cv", number = 10), tuneGrid = expand.grid(mtry = c(2, 4, 8, 16)), method = "rf", importance = TRUE)
+rf
+
+```
+
+
+
+
+```{r}
+set.seed(1)
+predictions <- predict(rf,chocolaten_test)
+rf_RMSE = RMSE(predictions, chocolaten_test$Rating)
+rf_RMSE
+
+```
+<h1>"RandomForest with PCA"<h1>
+
+
+```{r}
+set.seed(1)
+library(caret)
+rf_pca = train(Rating ~ ., data = chocolaten_train, trControl = trainControl("cv", number = 10), preProcess = "pca", tuneGrid = expand.grid(mtry = c(2, 4, 8, 16)), method = "rf", importance = TRUE)
+
+```
+
+
+
+```{r}
+
+rf_pca
+rf_pca$preProcess
+
+```
+
+```{r}
+set.seed(1)
+predictions <- predict(rf_pca,chocolaten_test)
+rf_pca_RMSE = RMSE(predictions, chocolaten_test$Rating)
+rf_pca_RMSE
+
+```
+
+<h1>"Gradient Boosted Tree"<h1>
+
+```{r}
+set.seed(1)
+library(caret)
+gbm = train(Rating ~ ., data = chocolaten_train, trControl = trainControl("cv", number = 10), method = "gbm", preProc="nzv")
+gbm
+```
+
+
+```{r}
+set.seed(1)
+gbm_predictions = predict(gbm, chocolaten_test)
+gbm_RMSE <- RMSE(gbm_predictions, chocolate_test$Rating)
+gbm_RMSE
+
+```
+
+Partioning the train data to 90% train and 10% validation.
+
+```{r}
+
+library(caret)
+
+train = createDataPartition(chocolate_train$Rating, p=0.9, list = FALSE)
+
+
+
+value = chocolate_train[train,]
+chocolate_validation = chocolate_train[-train,]
+chocolate_train1 = value
+```
+
+<h1>Artificial Neural Networks<h1>
+
+
+
+```{r}
+
+chocolate_train_cat = chocolate_train1[c(1,2,6,8,9)] 
+
+chocolate_train_num = chocolate_train1[c(3,4,5)]
+
+chocolate_train_target = chocolate_train1[7]
+
+chocolate_test_cat = chocolate_test[c(1,2,6,8,9)] 
+
+chocolate_test_num = chocolate_test[c(3,4,5)]
+
+chocolate_test_target = chocolate_test[7]
+
+
+chocolate_val_cat = chocolate_validation[c(1,2,6,8,9)] 
+
+chocolate_val_num = chocolate_validation[c(3,4,5)]
+
+chocolate_val_target = chocolate_validation[7]
+
+```
+
+
+
+
+
+```{r}
+chocolate_train_cat = lapply(chocolate_train_cat, as.numeric)
+
+str(chocolate_train_cat)
+
+chocolate_test_cat = lapply(chocolate_test_cat, as.numeric)
+
+str(chocolate_test_cat)
+
+chocolate_val_cat = lapply(chocolate_val_cat, as.numeric)
+
+str(chocolate_val_cat)
+
+```
+
+
+
+```{r}
+
+chocolate_train_scale = cbind(chocolate_train_cat,chocolate_train_num)
+
+chocolate_test_scale = cbind(chocolate_test_cat,chocolate_test_num)
+
+chocolate_val_scale = cbind(chocolate_val_cat,chocolate_val_num)
+
+```
+
+
+```{r}
+
+chocolate_train_scale=scale(chocolate_train_scale)
+
+col_means_train <- attr(chocolate_train_scale, "scaled:center")
+col_stddevs_train <- attr(chocolate_train_scale, "scaled:scale")
+
+
+chocolate_test_scale = scale(chocolate_test_scale, center = col_means_train, scale = col_stddevs_train)
+
+chocolate_val_scale <- scale(chocolate_val_scale, center = col_means_train, scale = col_stddevs_train)
+
+
+chocolate_train_final = cbind(chocolate_train_scale,chocolate_train_target)
+
+chocolate_test_final = cbind(chocolate_test_scale,chocolate_test_target)
+
+chocolate_val_final = cbind(chocolate_val_scale,chocolate_val_target)
+
+
+
+```
+
+
+
+```{r}
+train = chocolate_train_final
+
+test = chocolate_test_final
+
+val = chocolate_val_final
+
+
+
+chocolate_train_final = train[-9]
+chocolate_train_final_lables = train[9]
+
+
+chocolate_test_final = test[-9]
+chocolate_test_final_lables = test[9]
+
+chocolate_val_final = val[-9]
+chocolate_val_final_lables = val[9]
+
+
+chocolate_train_final = as.matrix(chocolate_train_final)
+
+chocolate_train_final_lables = as.matrix(chocolate_train_final_lables)
+
+chocolate_test_final = as.matrix(chocolate_test_final)
+
+chocolate_test_final_lables = as.matrix(chocolate_test_final_lables)
+
+chocolate_val_final = as.matrix(chocolate_val_final)
+
+chocolate_val_final_lables = as.matrix(chocolate_val_final_lables)
+
+```
+
+
+
+```{r}
+
+
+set.seed(1)
+library(keras)
+library(tfruns)
+
+runs <- tuning_run("chocolate.R",
+flags = list(
+nodes1 = c(64, 128),
+nodes2 = c(128,392),
+learning_rate = c(0.01, 0.05, 0.001, 0.0001),
+batch_size=c(100,200,500,1000),
+epochs=c(30,50,100),
+activation=c("relu","sigmoid","tanh")
+),
+sample = 0.02
+)
+
+
+```
+
+
+
+```{r}
+print(runs)
+```
+
+
+
+```{r}
+view_run(runs$run_dir[4])
+
+```
+
+
+
+```{r}
+
+str(chocolate_train)
+
+```
+
+
+```{r}
+train_factors = chocolate_train[c(1,2,6,8,9)]
+
+train_numericals = chocolate_train[c(3,4,5)]
+
+train_Rating = chocolate_train[7]
+
+train_factors = lapply(train_factors, as.numeric)
+
+train_scale = cbind(train_factors,train_numericals)
+
+
+choco_train_scale=scale(train_scale)
+
+choco_t = cbind(choco_train_scale,train_Rating)
+
+val = choco_t
+
+chocolate_t = val[-9]
+
+chocolate_t_lables = val[9] 
+
+chocolate_t = as.matrix(chocolate_t)
+
+chocolate_t_lables = as.matrix(chocolate_t_lables)
+
+```
+
+
+
+
+
+```{r}
+set.seed(111)
+
+model =keras_model_sequential()
+
+model %>%
+  layer_dense(units = 64, activation = "sigmoid", input_shape = dim(chocolate_t)[2]) %>% layer_dropout(0.5) %>% 
+  layer_dense(units = 128, activation = "sigmoid") %>% layer_dropout(0.5) %>%
+  layer_dense(units = 1)
+
+model %>% compile(
+  optimizer = optimizer_adam(lr=0.05),
+  loss = 'mse')
+
+model %>% fit(
+  chocolate_t, chocolate_t_lables, epochs = 50
+  , batch_size= 200,
+  validation_data=list(chocolate_val_final, chocolate_val_final_lables ))
+
+
+
+predictions=model %>% predict(chocolate_test_final)
+
+ rmse= function(x,y){
+return((mean((x - y)^2))^0.5)
+}
+ ANN_RMSE = rmse(predictions,chocolate_test_final_lables)
+ ANN_RMSE
+
+```
+
+<h1>RMSE COMPARISION<h1>
+
+
+```{r}
+
+RMSE_table <- matrix(c(lm_RMSE, Bag_rmse, Rtrees_RMSE, Mtrees_RMSE, F.stepmodel_RMSE, B.stepmodel_RMSE, lasso_RMSE, Ridge_RMSE, ENET_RMSE, rf_RMSE, rf_pca_RMSE, gbm_RMSE, ANN_RMSE), ncol = 13)
+
+colnames(RMSE_table) <- c("Liner Regression", "Bagging Tree", "Regression Tress", "Model Trees", "Forward LRegression", "Backward LRegression", "Lasso", "Ridge", "ENET", "Randomforest", "Randomforestpca", "Gboost", "ANN")
+
+rownames(RMSE_table) <- "RMSE"
+RMSE_table <- as.table(RMSE_table)
+RMSE_table
+
+```
+
+
